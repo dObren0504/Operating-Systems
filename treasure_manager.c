@@ -31,6 +31,25 @@ typedef struct treasure
 }treasure_t;
 
 
+
+void log_hunt (char* huntID, char* message)
+{
+    char logFile[256];
+    snprintf (logFile, sizeof (logFile), "%s/logged_hunt.txt", huntID);
+
+    FILE* file = NULL;
+    if ((file = fopen (logFile, "a")) == NULL)
+    {
+        perror ("Eroare deschidere fisier!\n");
+        return;
+    }
+    fprintf (file, "%s\n", message);
+    fclose (file);
+
+}
+
+
+
 void add (char *huntID)
 {
     if (!dir_exists (huntID))
@@ -71,7 +90,12 @@ void add (char *huntID)
     {
         perror ("Eroare la scrierea in fisier!\n");
     }
+    log_hunt (huntID, "Treasure added");
+    close(file);
 }
+
+
+
 
 
 void list (char* huntID)
@@ -103,7 +127,8 @@ void list (char* huntID)
         printf ("%d\n%s\n%.2f\n%.2f\n%s\n%d\n", treasure.ID, treasure.userName, treasure.latitude, treasure.longitude, treasure.clue, treasure.value);
         size = read (file, &treasure, sizeof (treasure_t));
     }
-    
+    log_hunt (huntID, "Listed treasures");
+    close (file);
     
 }
 
@@ -132,20 +157,34 @@ void view (char* huntID, int ID)
         perror ("Eroare citire fisier!\n");
         return;
     }
+    char message[256];
+    int count = 0;
     while (size == sizeof (treasure_t))
     {
         if (treasure.ID == ID)
         {
             printf ("%d\n%s\n%.2f\n%.2f\n%s\n%d\n", treasure.ID, treasure.userName, treasure.latitude, treasure.longitude, treasure.clue, treasure.value);
+            snprintf (message, sizeof (message), "Viewed treasure with ID: %d", treasure.ID);
+            count++;
         }
         size = read (file, &treasure, sizeof (treasure_t));
     }
+    if (count == 0)
+    {
+        perror ("Nu s-a gasit comoara ceruta!\n");
+        return;
+    }
+    log_hunt (huntID, message);
+    close (file);
 }
+
+
 
 
 int main (void)
 {
     //add("Hunt1");
+    //remove_treasure ("Hunt1", 1);
     //list("Hunt1");
     view("Hunt1", 1);
     return 0;
