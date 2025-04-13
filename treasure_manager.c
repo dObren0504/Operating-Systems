@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <time.h>
-
+#include <errno.h>
 
 
 #define MAX_CLUE 250
@@ -109,6 +109,15 @@ void add (char *huntID)
         perror ("Error writing to file\n");
     }
     log_hunt (huntID, "Treasure added");
+    char logPath[256];
+    snprintf (logPath, sizeof (logPath), "%s/logged_hunt.txt", huntID);
+
+    char linkedPath[256];
+    snprintf (linkedPath, sizeof (linkedPath), "logged_hunt-%s", huntID);
+    if (symlink(logPath, linkedPath) == -1 && errno != EEXIST)
+    {
+        perror("Error creating symlink");
+    }
     close(file);
 }
 
