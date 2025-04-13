@@ -272,45 +272,58 @@ void remove_treasure (char* huntID, int ID)
 }
 
 
-int main (void)
+int main (int argc, char** argv)
 {
-    printf ("Choose your option\n");
-    printf ("Option 1: Add a treasure\n");
-    printf ("Option 2: List a hunt\n");
-    printf ("Option 3: View a specific treasure\n");
-    printf ("Option 4: Remove a treasure\n");
-    printf ("Option 5: Remove a hunt\n\n");
-    int option;
-    printf ("Enter your option number: ");
-    scanf ("%d", &option);
-    switch (option)
+    if (argc < 3)
     {
-        char huntName[100];
-        int ID;
-        case 1:
-            printf ("Enter a hunt name: ");
-            scanf ("%s", huntName);
-            add (huntName);
-            break;
-        case 2: 
-            printf ("Enter a hunt name: ");
-            scanf ("%s", huntName);
-            list (huntName);
-            break;
-        case 3:
-            printf ("Enter a hunt and a specific ID: ");
-            scanf ("%s %d", huntName, &ID);
-            view (huntName, ID);
-            break;
-        case 4:
-            printf ("Enter a hunt and a specific ID: ");
-            scanf ("%s %d", huntName, &ID);
-            remove_treasure (huntName, ID);
-            break;
-        default:
-            perror ("Invalid option\n");
-            break;
+        fprintf(stderr, "Usage:\n");
+        fprintf(stderr, "  %s --add <huntName>\n", argv[0]);
+        fprintf(stderr, "  %s --list <huntName>\n", argv[0]);
+        fprintf(stderr, "  %s --view <huntName> <ID>\n", argv[0]);
+        fprintf(stderr, "  %s --remove <huntName> <ID>\n", argv[0]);
+        fprintf(stderr, "  %s --delete <huntName>\n", argv[0]);
+        return 1;
     }
-    
+
+    char* option = argv[1];
+    char* huntName = argv[2];
+
+    if (strcmp (option, "--add") == 0)
+    {
+        add (huntName);
+    }
+    else if (strcmp (option, "--list") == 0)
+    {
+        list (huntName);
+    }
+    else if (strcmp (option, "--view") == 0)
+    {
+        if (argc < 4)
+        {
+            fprintf (stderr, "You need to enter a specific ID\n");
+            return 1;
+        }
+        int ID = atoi (argv [3]);
+        view (huntName, ID);
+    }
+    else if (strcmp (option, "--remove") == 0)
+    {
+        if (argc < 4)
+        {
+            fprintf (stderr, "You need to enter a specific ID\n");
+            return 1;
+        }
+        int ID = atoi (argv[3]);
+        remove_treasure (huntName, ID);
+    }
+    else if (strcmp (option, "--delete") == 0)
+    {
+        //...
+    }
+    else{
+        fprintf (stderr, "Invalid option\n");
+        return 1;
+    }
+
     return 0;
 }
