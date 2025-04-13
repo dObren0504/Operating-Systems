@@ -207,6 +207,69 @@ void view (char* huntID, int ID)
 }
 
 
+void remove_treasure (char* huntID, int ID)
+{
+    char filePath[256];
+    snprintf (filePath, sizeof (filePath), "%s/treasures.dat", huntID);
+    int file;
+    if ((file = open (filePath, O_RDONLY)) < 0)
+    {
+        perror ("Error opening file\n");
+        return;
+    }
+    char copyPath[256];
+    snprintf (copyPath, sizeof (filePath), "%s/copy.dat", huntID);
+    int copyFile;
+    if ((copyFile = open (copyPath, O_WRONLY | O_CREAT | O_APPEND, 0644)) < 0) //0644 - reading and writing rights for owner and only reading for others
+    {
+        perror ("Error opening file\n");
+        return;
+    }
+    treasure_t treasure;
+    int count = 0;
+    int size = read (file, &treasure, sizeof (treasure_t));
+    if (size != sizeof (treasure_t))
+    {
+        perror ("Error reading file\n");
+        return;
+    }
+    char message[256];
+    while (size == sizeof (treasure_t))
+    {
+        if (treasure.ID == ID)
+        {
+            snprintf (message, sizeof (message), "Removed treasure with ID: %d", treasure.ID);
+            count++;
+        }
+        else
+        {
+            int size = write (copyFile, &treasure, sizeof (treasure_t));
+            if (size != sizeof (treasure_t))
+            {
+                perror ("Error writing to file\n");
+            }
+        }
+        size = read (file, &treasure, sizeof (treasure_t));
+    }
+    if (count == 0)
+    {
+        perror ("Treasure not found\n");
+        remove (copyPath);
+        return;
+    }
+    else
+    {
+        log_hunt (huntID, message);
+    }
+    if (rename (copyPath, filePath) != 0)
+    {
+        perror ("Error renaming the file");
+        return;
+    }
+    
+    close (file);
+    close (copyFile);
+}
 
 
 int main (void)
@@ -238,6 +301,11 @@ int main (void)
             printf ("Enter a hunt and a specific ID: ");
             scanf ("%s %d", huntName, &ID);
             view (huntName, ID);
+            break;
+        case 4:
+            printf ("Enter a hunt and a specific ID: ");
+            scanf ("%s %d", huntName, &ID);
+            remove_treasure (huntName, ID);
             break;
         default:
             perror ("Invalid option\n");
