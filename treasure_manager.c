@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <time.h>
 
 
 
@@ -40,7 +41,7 @@ void log_hunt (char* huntID, char* message)
     FILE* file = NULL;
     if ((file = fopen (logFile, "a")) == NULL)
     {
-        perror ("Eroare deschidere fisier!\n");
+        perror ("Error opening file\n");
         return;
     }
     fprintf (file, "%s\n", message);
@@ -54,41 +55,58 @@ void add (char *huntID)
 {
     if (!dir_exists (huntID))
     {
-        if (mkdir (huntID, 0777) != 0)
+        if (mkdir (huntID, 0777) != 0) //0777 - read, write, execute for everybody
         {
-            perror ("Eroare la crearea directorului!\n");
+            perror ("Error creating directory\n");
             return;
         }
     }
     char filePath[256];
     snprintf (filePath, sizeof (filePath), "%s/treasures.dat", huntID);
     int file;
-    if ((file = open (filePath, O_WRONLY | O_CREAT | O_APPEND, 0644)) < 0) //0644 - drepturi de citire si scriere pentru owner si doar de citire pentru ceilalti
+    if ((file = open (filePath, O_WRONLY | O_CREAT | O_APPEND, 0644)) < 0) //0644 - reading and writing rights for owner and only reading for others
     {
-        perror ("Eroare la deschiderea fisierului!\n");
+        perror ("Error opening file\n");
         return;
     }
     treasure_t treasure;
-    printf ("Introduceti ID-ul: ");
-    scanf ("%d", &treasure.ID);
-    printf ("Introduceti User Name-ul: ");
-    scanf ("%s", treasure.userName);
-    printf ("Introduceti latitudinea: ");
-    scanf ("%f", &treasure.latitude);
-    printf ("Introduceti longitudinea: ");
-    scanf ("%f", &treasure.longitude);
-    printf ("Introduceti valoarea: ");
-    scanf ("%d", &treasure.value);
+    char buffer[100];
+
+    printf ("Enter the ID: ");
+    fflush (stdout);
+    read(0, buffer, sizeof(buffer));
+    treasure.ID = atoi(buffer);
+
+    printf ("Enter the User Name: ");
+    fflush (stdout);
+    read(0, treasure.userName, sizeof(treasure.userName));
+    treasure.userName[strcspn(treasure.userName, "\n")] = '\0';
+
+    printf ("Enter the latitude: ");
+    fflush (stdout);
+    read(0, buffer, sizeof(buffer));
+    treasure.latitude = atof(buffer);
+
+    printf ("Enter the longitude: ");
+    fflush (stdout);
+    read(0, buffer, sizeof(buffer));
+    treasure.longitude = atof(buffer);
+
+    printf ("Enter the value: ");
+    fflush (stdout);
+    read(0, buffer, sizeof(buffer));
+    treasure.value = atoi(buffer);
     
-    getchar();
-    printf ("Introduceti clue-ul: ");
-    fgets (treasure.clue, MAX_CLUE, stdin);
+    
+    printf ("Enter the clue: ");
+    fflush (stdout);
+    read (0, treasure.clue, sizeof (treasure.clue));
     treasure.clue[strcspn (treasure.clue, "\n")] = '\0';
 
     int size = write (file, &treasure, sizeof (treasure_t));
     if (size != sizeof (treasure_t))
     {
-        perror ("Eroare la scrierea in fisier!\n");
+        perror ("Error writing to file\n");
     }
     log_hunt (huntID, "Treasure added");
     close(file);
@@ -106,20 +124,30 @@ void list (char* huntID)
     struct stat st;
     if (stat (treasureFile, &st) != 0)
     {
-        perror ("Eroare accesare fisier!\n");
+        perror ("Error accessing file\n");
         return;
     }
+
+
+    printf ("Hunt Name: %s\n", huntID);
+    printf ("File size: %ld bytes\n", st.st_size);
+
+    char timeBuffer[100];
+    struct tm* time = localtime (&st.st_mtime);
+    strftime (timeBuffer, sizeof (timeBuffer), "%Y-%m-%d %H:%M:%S", time);
+    printf ("Last modified: %s\n", timeBuffer);
+
     int file;
     if ((file = open (treasureFile, O_RDONLY)) < 0)
     {
-        perror ("Eroare deschidere fisier!\n");
+        perror ("Error opening file\n");
         return;
     }
     treasure_t treasure;
     int size = read (file, &treasure, sizeof (treasure_t));
     if (size != sizeof (treasure_t))
     {
-        perror ("Eroare citire fisier!\n");
+        perror ("Error reading file\n");
         return;
     }
     while (size == sizeof (treasure_t))
@@ -141,20 +169,20 @@ void view (char* huntID, int ID)
     struct stat st;
     if (stat (treasureFile, &st) != 0)
     {
-        perror ("Eroare accesare fisier!\n");
+        perror ("Error accessing file\n");
         return;
     }
     int file;
     if ((file = open (treasureFile, O_RDONLY)) < 0)
     {
-        perror ("Eroare deschidere fisier!\n");
+        perror ("Error opening file\n");
         return;
     }
     treasure_t treasure;
     int size = read (file, &treasure, sizeof (treasure_t));
     if (size != sizeof (treasure_t))
     {
-        perror ("Eroare citire fisier!\n");
+        perror ("Error reading file\n");
         return;
     }
     char message[256];
@@ -171,7 +199,7 @@ void view (char* huntID, int ID)
     }
     if (count == 0)
     {
-        perror ("Nu s-a gasit comoara ceruta!\n");
+        perror ("Treasure not found\n");
         return;
     }
     log_hunt (huntID, message);
@@ -183,9 +211,38 @@ void view (char* huntID, int ID)
 
 int main (void)
 {
-    //add("Hunt1");
-    //remove_treasure ("Hunt1", 1);
-    //list("Hunt1");
-    view("Hunt1", 1);
+    printf ("Choose your option\n");
+    printf ("Option 1: Add a treasure\n");
+    printf ("Option 2: List a hunt\n");
+    printf ("Option 3: View a specific treasure\n");
+    printf ("Option 4: Remove a treasure\n");
+    printf ("Option 5: Remove a hunt\n\n");
+    int option;
+    printf ("Enter your option number: ");
+    scanf ("%d", &option);
+    switch (option)
+    {
+        char huntName[100];
+        int ID;
+        case 1:
+            printf ("Enter a hunt name: ");
+            scanf ("%s", huntName);
+            add (huntName);
+            break;
+        case 2: 
+            printf ("Enter a hunt name: ");
+            scanf ("%s", huntName);
+            list (huntName);
+            break;
+        case 3:
+            printf ("Enter a hunt and a specific ID: ");
+            scanf ("%s %d", huntName, &ID);
+            view (huntName, ID);
+            break;
+        default:
+            perror ("Invalid option\n");
+            break;
+    }
+    
     return 0;
 }
