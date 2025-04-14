@@ -281,6 +281,42 @@ void remove_treasure (char* huntID, int ID)
 }
 
 
+void remove_hunt (char* huntID)
+{
+    char filePath[256];
+    snprintf (filePath, sizeof (filePath), "%s/treasures.dat", huntID);
+
+    if (remove (filePath))
+    {
+        perror ("Error removing the file");
+        return;
+    }
+
+    char logPath[256];
+    snprintf (logPath, sizeof (logPath), "%s/logged_hunt.txt", huntID);
+
+    if (remove (logPath))
+    {
+        perror ("Error removing the file");
+        return;
+    }
+
+    char linkPath[256];
+    snprintf (linkPath, sizeof (linkPath), "logged_hunt-%s", huntID);
+    if (remove (linkPath))
+    {
+        perror ("Error removing symbolic link");
+        return;
+    }
+    if (remove (huntID))
+    {
+        perror ("Error removing directory");
+        return;
+    }
+
+}
+
+
 int main (int argc, char** argv)
 {
     if (argc < 3)
@@ -327,7 +363,7 @@ int main (int argc, char** argv)
     }
     else if (strcmp (option, "--delete") == 0)
     {
-        //...
+        remove_hunt (huntName);
     }
     else{
         fprintf (stderr, "Invalid option\n");
