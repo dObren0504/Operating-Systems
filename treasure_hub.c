@@ -7,10 +7,12 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 pid_t monitor_pid = -1;
 int monitor_running = 0;
 int monitor_shutting_down = 0;
+int shut_down_error_printed = 0;
 
 void handler_sigusr1(int sig)
 {
@@ -24,9 +26,34 @@ void handler_term(int sig)
     exit(0);
 }
 
+void handler_sigchld(int sig)
+{
+    int status;
+    pid_t pid;
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+    {
+        if (pid == monitor_pid)
+        {
+            if (WIFEXITED(status))
+            {
+                char message[256];
+                snprintf(message, sizeof(message), "Monitor exited with code: %d\n", WEXITSTATUS(status));
+                write(1, message, strlen(message));
+            }
+            monitor_pid = -1;
+            monitor_running = 0;
+            monitor_shutting_down = 0;
+            shut_down_error_printed = 0;
+        }
+    }
+}
+
 void start_monitor ()
 {
-    
+    if (monitor_shutting_down)
+    {
+        return;
+    }
     if (monitor_running)
     {
         write (1, "Monitor is already running\n", strlen ("Monitor is already running\n"));
@@ -73,23 +100,19 @@ void stop_monitor ()
     {
         monitor_shutting_down = 1;
         kill (monitor_pid, SIGTERM);
-        int status;
-        waitpid (monitor_pid, &status, 0);
-        if (WIFEXITED(status))
-        {
-            {
-                char message[256];
-                snprintf(message, sizeof(message), "Monitor exited with code: %d\n", WEXITSTATUS(status));
-                write(1, message, strlen(message));
-            }
-            monitor_pid = -1;
-            monitor_running = 0;
-            monitor_shutting_down = 0;
-        }
+        
     }
     else
     {
         write (1, "No monitor is running\n", strlen ("No monitor is running\n"));
+    }
+}
+
+void handle_shutdown_error() {   //Function for handling the error when giving a command while shutting down 
+    if (!shut_down_error_printed) 
+    {
+        write(1, "Monitor is shutting down, please wait...\n", strlen("Monitor is shutting down, please wait...\n"));
+        shut_down_error_printed = 1;  
     }
 }
 
@@ -98,20 +121,46 @@ int main (void)
     char compile_cmd[] = "gcc -Wall -o treasure_manager treasure_manager.c";
     system (compile_cmd);
     char command[256];
+
+    struct sigaction sa_chld;
+    sa_chld.sa_handler = handler_sigchld;
+    sigemptyset(&sa_chld.sa_mask);
+    sa_chld.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    sigaction(SIGCHLD, &sa_chld, NULL);
+
     while (1)
     {
-        
-
         int size = read (0, command, sizeof (command) - 1);
         command[size] = '\0';
         if (command[size - 1] == '\n')
         {
             command[size - 1] = '\0';
         }
-        if (monitor_shutting_down) {
-            write(1, "Monitor is shutting down, please wait...\n", strlen("Monitor is shutting down, please wait...\n"));
-            continue;
+        
+        if (monitor_shutting_down)
+        {
+            handle_shutdown_error();
         }
+
+        /*if (monitor_shutting_down)
+        {
+            int status;
+            waitpid (monitor_pid, &status, 0);
+            if (WIFEXITED(status))
+            {
+                {
+                    char message[256];
+                    snprintf(message, sizeof(message), "Monitor exited with code: %d\n", WEXITSTATUS(status));
+                    write(1, message, strlen(message));
+                }
+                monitor_pid = -1;
+                monitor_running = 0;
+                monitor_shutting_down = 0;
+                shut_down_error_printed = 0;
+            }
+            
+        } */ // After this, the new command will be processed
+        
         if (strcmp (command, "start_monitor") == 0)
         {
             start_monitor();
@@ -120,6 +169,7 @@ int main (void)
         {
             stop_monitor();
         }
+        
     }
     return 0;
 }
