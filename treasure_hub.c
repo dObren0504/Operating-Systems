@@ -44,6 +44,7 @@ void handler_sigusr1(int sig)
 void handler_term(int sig)
 {
     write(1, "Monitor shutting down...\n", strlen ("Monitor shutting down...\n"));
+    unlink("/tmp/command.txt");
     usleep(10000000);  
     exit(0);
 }
@@ -93,7 +94,7 @@ void start_monitor ()
         sigemptyset(&sa_usr1.sa_mask);  //initializes the signal mask to empty, meaning that no signals will be blocked during handler_sigusr1
         sa_usr1.sa_flags = 0;  //no special flags used here
         sigaction(SIGUSR1, &sa_usr1, NULL);  //after this, when SIGUSR1 is received, the process will call handler_sigusr1
-
+        
 
         sa_term.sa_handler = handler_term;
         sigemptyset(&sa_term.sa_mask);  
@@ -186,99 +187,76 @@ int main (void)
             else
                 continue;
         }
-        else if (strcmp (command, "list_treasures") == 0) 
+        else if (strcmp(command, "list_treasures") == 0 || strcmp(command, "view_treasure") == 0)
         {
             if (monitor_running)
             {
                 if (monitor_shutting_down == 0)
                 {
-                    char option[] = "--list";
+                    char option[16];
                     char huntID[256];
-                    write (1, "Give a Hunt ID: ", strlen ("Give a Hunt ID: "));
-                    int size = read (0, huntID, sizeof (huntID) - 1);
-                    huntID[size] = '\0';
-                    if (huntID[size - 1] == '\n')
-                    {
-                        huntID[size - 1] = '\0';
+                    char buff[16];
+
+                    if (strcmp(command, "list_treasures") == 0) {
+                        strcpy(option, "--list");
+                        write(1, "Give a Hunt ID: ", strlen("Give a Hunt ID: "));
+                    } 
+                    else if (strcmp(command, "view_treasure") == 0) {
+                        strcpy(option, "--view");
+                        write(1, "Give a Hunt ID: ", strlen("Give a Hunt ID: "));
                     }
 
+                    // Read the Hunt ID
+                    int size = read(0, huntID, sizeof(huntID) - 1);
+                    huntID[size] = '\0';
+                    if (huntID[size - 1] == '\n') huntID[size - 1] = '\0';
+
+                    // For view_treasure, ask for treasure ID as well
+                    if (strcmp(command, "view_treasure") == 0) {
+                        write(1, "Give a treasure ID: ", strlen("Give a treasure ID: "));
+                        size = read(0, buff, sizeof(buff) - 1);
+                        buff[size] = '\0';
+                    }
+
+                    // Open the command file and write the command
                     int fd = open(COMMAND_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                    if (fd >= 0) 
+                    if (fd >= 0)
                     {
                         write(fd, option, strlen(option));
-                        write(fd, " ", strlen (" "));
-                        write (fd, huntID, strlen (huntID));
+                        write(fd, " ", strlen(" "));
+                        write(fd, huntID, strlen(huntID));
+                        
+                        // Write treasure ID only if it's a view_treasure command
+                        if (strcmp(command, "view_treasure") == 0) {
+                            write(fd, " ", strlen(" "));
+                            write(fd, buff, strlen(buff));
+                        }
+
                         close(fd);
-                    } 
-                    else 
+                    }
+                    else
                     {
                         perror("Failed to write to command file");
                     }
-                    write (1, "Listing treasures...\n", strlen ("Listing treasures...\n"));
-                    kill (monitor_pid, SIGUSR1);
 
-
+                    // Inform user and send the signal to monitor
+                    write(1, (strcmp(command, "list_treasures") == 0) ? "Listing treasures...\n" : "Viewing treasure...\n", 
+                        (strcmp(command, "list_treasures") == 0) ? strlen("Listing treasures...\n") : strlen("Viewing treasure...\n"));
+                    kill(monitor_pid, SIGUSR1);
                 }
-                else    
+                else
+                {
                     continue;
+                }
             }
             else
             {
                 write(1, "Monitor is not running\n", strlen("Monitor is not running\n"));
             }
         }
-
-        else if (strcmp (command, "view_treasure") == 0)
+        else
         {
-            if (monitor_running)
-            {
-                if (monitor_shutting_down == 0)
-                {
-                    char option[] = "--view";
-                    char huntID[256];
-                    write (1, "Give a Hunt ID: ", strlen ("Give a Hunt ID: "));
-                    int size = read (0, huntID, sizeof (huntID) - 1);
-                    huntID[size] = '\0';
-                    if (huntID[size - 1] == '\n')
-                    {
-                        huntID[size - 1] = '\0';
-                    }
-
-                   
-                    char buff[16];
-                    write (1, "Give a treasure ID: ", strlen ("Give a treasure ID: "));
-                    size = read (0, buff, sizeof (buff) - 1);
-                    buff [size] = '\0';
-                    
-
-                    
-
-                    int fd = open(COMMAND_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                    if (fd >= 0) 
-                    {
-                        write(fd, option, strlen(option));
-                        write(fd, " ", strlen (" "));
-                        write (fd, huntID, strlen (huntID));
-                        write (fd, " ", strlen (" "));
-                        write (fd, buff, strlen (buff));
-                        close(fd);
-                    } 
-                    else 
-                    {
-                        perror("Failed to write to command file");
-                    }
-                    write (1, "Viewing treasure...\n", strlen ("Listing treasures...\n"));
-                    kill (monitor_pid, SIGUSR1);
-
-
-                }
-                else    
-                    continue;
-            }
-            else
-            {
-                write(1, "Monitor is not running\n", strlen("Monitor is not running\n"));
-            }
+            write (1, "Invalid Command\n\nTry:\nstart_monitor\nlist_hunts\nlist_treasures\nview_treasure\nstop_monitor\nexit\n\n", strlen ("Invalid Command\n\nTry:\nstart_monitor\nlist_hunts\nlist_treasures\nview_treasure\nstop_monitor\nexit\n\n"));
         }
         
     }
