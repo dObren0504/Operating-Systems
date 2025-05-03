@@ -227,6 +227,59 @@ int main (void)
                 write(1, "Monitor is not running\n", strlen("Monitor is not running\n"));
             }
         }
+
+        else if (strcmp (command, "view_treasure") == 0)
+        {
+            if (monitor_running)
+            {
+                if (monitor_shutting_down == 0)
+                {
+                    char option[] = "--view";
+                    char huntID[256];
+                    write (1, "Give a Hunt ID: ", strlen ("Give a Hunt ID: "));
+                    int size = read (0, huntID, sizeof (huntID) - 1);
+                    huntID[size] = '\0';
+                    if (huntID[size - 1] == '\n')
+                    {
+                        huntID[size - 1] = '\0';
+                    }
+
+                   
+                    char buff[16];
+                    write (1, "Give a treasure ID: ", strlen ("Give a treasure ID: "));
+                    size = read (0, buff, sizeof (buff) - 1);
+                    buff [size] = '\0';
+                    
+
+                    
+
+                    int fd = open(COMMAND_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                    if (fd >= 0) 
+                    {
+                        write(fd, option, strlen(option));
+                        write(fd, " ", strlen (" "));
+                        write (fd, huntID, strlen (huntID));
+                        write (fd, " ", strlen (" "));
+                        write (fd, buff, strlen (buff));
+                        close(fd);
+                    } 
+                    else 
+                    {
+                        perror("Failed to write to command file");
+                    }
+                    write (1, "Viewing treasure...\n", strlen ("Listing treasures...\n"));
+                    kill (monitor_pid, SIGUSR1);
+
+
+                }
+                else    
+                    continue;
+            }
+            else
+            {
+                write(1, "Monitor is not running\n", strlen("Monitor is not running\n"));
+            }
+        }
         
     }
     return 0;
