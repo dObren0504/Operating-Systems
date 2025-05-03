@@ -9,6 +9,11 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+
+#define COMMAND_FILE "/tmp/command.txt"  // I will write the command in this file, so i can manage the SIGUSR1 signal depending on the command
+                                         
+
+
 pid_t monitor_pid = -1;
 int monitor_running = 0;
 int monitor_shutting_down = 0;
@@ -16,7 +21,24 @@ int shut_down_error_printed = 0;
 
 void handler_sigusr1(int sig)
 {
+    char exec_command[512];
+    strcpy (exec_command, "./treasure_manager ");
 
+
+    char buffer[256];
+    int fd = open(COMMAND_FILE, O_RDONLY);
+    if (fd >= 0) {
+        ssize_t size = read(fd, buffer, sizeof(buffer) - 1);
+        if (size > 0) {
+            buffer[size] = '\0';
+
+            strcat (exec_command, buffer);
+            system (exec_command);
+        }
+        close(fd);
+    } else {
+        perror("Monitor failed to open command file");
+    }
 }
 
 void handler_term(int sig)
@@ -130,6 +152,7 @@ int main (void)
 
     while (1)
     {
+        //write (1, ">>> ", strlen (">>> "));
         int size = read (0, command, sizeof (command) - 1);
         command[size] = '\0';
         if (command[size - 1] == '\n')
@@ -142,24 +165,6 @@ int main (void)
             handle_shutdown_error();
         }
 
-        /*if (monitor_shutting_down)
-        {
-            int status;
-            waitpid (monitor_pid, &status, 0);
-            if (WIFEXITED(status))
-            {
-                {
-                    char message[256];
-                    snprintf(message, sizeof(message), "Monitor exited with code: %d\n", WEXITSTATUS(status));
-                    write(1, message, strlen(message));
-                }
-                monitor_pid = -1;
-                monitor_running = 0;
-                monitor_shutting_down = 0;
-                shut_down_error_printed = 0;
-            }
-            
-        } */ // After this, the new command will be processed
         
         if (strcmp (command, "start_monitor") == 0)
         {
@@ -168,6 +173,59 @@ int main (void)
         else if (strcmp (command, "stop_monitor") == 0)
         {
             stop_monitor();
+        }
+        else if (strcmp (command, "exit") == 0)
+        {
+            if (monitor_shutting_down == 0)
+            {
+                if (monitor_running)
+                    write (1, "Monitor is still running, you need to stop it before you exit!\n", strlen ("Monitor is still running, you need to stop it before you exit!\n"));
+                else
+                    break;
+            }
+            else
+                continue;
+        }
+        else if (strcmp (command, "list_treasures") == 0) 
+        {
+            if (monitor_running)
+            {
+                if (monitor_shutting_down == 0)
+                {
+                    char option[] = "--list";
+                    char huntID[256];
+                    write (1, "Give a Hunt ID: ", strlen ("Give a Hunt ID: "));
+                    int size = read (0, huntID, sizeof (huntID) - 1);
+                    huntID[size] = '\0';
+                    if (huntID[size - 1] == '\n')
+                    {
+                        huntID[size - 1] = '\0';
+                    }
+
+                    int fd = open(COMMAND_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                    if (fd >= 0) 
+                    {
+                        write(fd, option, strlen(option));
+                        write(fd, " ", strlen (" "));
+                        write (fd, huntID, strlen (huntID));
+                        close(fd);
+                    } 
+                    else 
+                    {
+                        perror("Failed to write to command file");
+                    }
+                    write (1, "Listing treasures...\n", strlen ("Listing treasures...\n"));
+                    kill (monitor_pid, SIGUSR1);
+
+
+                }
+                else    
+                    continue;
+            }
+            else
+            {
+                write(1, "Monitor is not running\n", strlen("Monitor is not running\n"));
+            }
         }
         
     }
