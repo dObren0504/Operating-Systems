@@ -21,25 +21,59 @@ int shut_down_error_printed = 0;
 
 void handler_sigusr1(int sig)
 {
-    char exec_command[512];
-    strcpy (exec_command, "./treasure_manager ");
-
-
     char buffer[256];
     int fd = open(COMMAND_FILE, O_RDONLY);
-    if (fd >= 0) {
+    if (fd >= 0) 
+    {
         ssize_t size = read(fd, buffer, sizeof(buffer) - 1);
-        if (size > 0) {
+        if (size > 0) 
+        {
             buffer[size] = '\0';
 
-            strcat (exec_command, buffer);
-            system (exec_command);
+            char *args[10];  // assuming max 10 arguments including program name and NULL
+            int arg_index = 0;
+
+            args[arg_index++] = "./treasure_manager";
+
+            char *token = strtok(buffer, " ");
+            while (token && arg_index < 9) 
+            {
+                args[arg_index++] = token;
+                token = strtok(NULL, " ");
+            }
+            args[arg_index] = NULL;  // execvp requires NULL-terminated array
+
+            pid_t pid = fork();
+            if (pid == 0) 
+            {
+                execvp(args[0], args);
+                perror("execvp failed");
+                exit(1);
+            } 
+            else if (pid > 0)
+            {
+                int status;
+                waitpid(pid, &status, 0);
+                if (WIFEXITED(status)) 
+                {
+                    char message[128];
+                    snprintf(message, sizeof(message), "Command exited with status %d\n", WEXITSTATUS(status));
+                    write(1, message, strlen(message));
+                } 
+            } 
+            else 
+            {
+                perror("fork failed");
+            }
         }
         close(fd);
-    } else {
+    } 
+    else 
+    {
         perror("Monitor failed to open command file");
     }
 }
+
 
 void handler_term(int sig)
 {
@@ -148,7 +182,7 @@ int main (void)
     struct sigaction sa_chld;
     sa_chld.sa_handler = handler_sigchld;
     sigemptyset(&sa_chld.sa_mask);
-    sa_chld.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    sa_chld.sa_flags = SA_RESTART | SA_NOCLDSTOP;  //restarts certain system calls (read or write) that are interrupted by this signal  and the sigchld won't be sent when the child is stopped
     sigaction(SIGCHLD, &sa_chld, NULL);
 
     while (1)
@@ -206,19 +240,19 @@ int main (void)
                         write(1, "Give a Hunt ID: ", strlen("Give a Hunt ID: "));
                     }
 
-                    // Read the Hunt ID
+                    
                     int size = read(0, huntID, sizeof(huntID) - 1);
                     huntID[size] = '\0';
                     if (huntID[size - 1] == '\n') huntID[size - 1] = '\0';
 
-                    // For view_treasure, ask for treasure ID as well
+                    
                     if (strcmp(command, "view_treasure") == 0) {
                         write(1, "Give a treasure ID: ", strlen("Give a treasure ID: "));
                         size = read(0, buff, sizeof(buff) - 1);
                         buff[size] = '\0';
                     }
 
-                    // Open the command file and write the command
+                    
                     int fd = open(COMMAND_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
                     if (fd >= 0)
                     {
@@ -226,7 +260,7 @@ int main (void)
                         write(fd, " ", strlen(" "));
                         write(fd, huntID, strlen(huntID));
                         
-                        // Write treasure ID only if it's a view_treasure command
+                        
                         if (strcmp(command, "view_treasure") == 0) {
                             write(fd, " ", strlen(" "));
                             write(fd, buff, strlen(buff));
@@ -239,7 +273,7 @@ int main (void)
                         perror("Failed to write to command file");
                     }
 
-                    // Inform user and send the signal to monitor
+                    
                     write(1, (strcmp(command, "list_treasures") == 0) ? "Listing treasures...\n" : "Viewing treasure...\n", 
                         (strcmp(command, "list_treasures") == 0) ? strlen("Listing treasures...\n") : strlen("Viewing treasure...\n"));
                     kill(monitor_pid, SIGUSR1);
