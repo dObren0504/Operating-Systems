@@ -288,6 +288,41 @@ int main (void)
                 write(1, "Monitor is not running\n", strlen("Monitor is not running\n"));
             }
         }
+        else if (strcmp (command, "list_hunts") == 0)
+        {
+            if (monitor_running)
+            {
+                if (monitor_shutting_down == 0)
+                {
+                    char option[16];
+                    strcpy (option, "--list_hunts");
+
+
+                    int fd = open(COMMAND_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                    if (fd >= 0)
+                    {
+                        write(fd, option, strlen(option));
+                        close(fd);
+                    }
+                    else
+                    {
+                        perror("Failed to write to command file");
+                    }
+
+                    
+                    write(1, "Listing hunts...\n", strlen ("Listing hunts...\n"));
+                    kill(monitor_pid, SIGUSR1);
+                }
+                else
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                write(1, "Monitor is not running\n", strlen("Monitor is not running\n"));
+            }
+        }
         else
         {
             write (1, "Invalid Command\n\nTry:\nstart_monitor\nlist_hunts\nlist_treasures\nview_treasure\nstop_monitor\nexit\n\n", strlen ("Invalid Command\n\nTry:\nstart_monitor\nlist_hunts\nlist_treasures\nview_treasure\nstop_monitor\nexit\n\n"));

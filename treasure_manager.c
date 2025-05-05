@@ -33,22 +33,27 @@ typedef struct treasure
 
 
 
-void log_hunt (char* huntID, char* message)
+void log_hunt(char* huntID, char* message)
 {
     char logFile[256];
-    snprintf (logFile, sizeof (logFile), "%s/logged_hunt.txt", huntID);
+    snprintf(logFile, sizeof(logFile), "%s/logged_hunt.txt", huntID);
 
-    FILE* file = NULL;
-    if ((file = fopen (logFile, "a")) == NULL)
+    int file = open(logFile, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (file < 0)
     {
-        perror ("Error opening file\n");
+        perror("Error opening file");
         return;
     }
-    fprintf (file, "%s\n", message);
-    fclose (file);
 
+    char buffer[1024];
+    int len = snprintf(buffer, sizeof(buffer), "%s\n", message);
+    if (write(file, buffer, len) != len)
+    {
+        perror("Error writing to file");
+    }
+
+    close(file);
 }
-
 
 
 void add (char *huntID)
@@ -71,35 +76,36 @@ void add (char *huntID)
     }
     treasure_t treasure;
     char buffer[100];
+    char prompt[64];
+    int len;
 
-    printf ("Enter the ID: ");
-    fflush (stdout);
+    len = snprintf(prompt, sizeof(prompt), "Enter the ID: ");
+    write(1, prompt, len);
     read(0, buffer, sizeof(buffer));
     treasure.ID = atoi(buffer);
 
-    printf ("Enter the User Name: ");
-    fflush (stdout);
+    len = snprintf(prompt, sizeof(prompt), "Enter the User Name: ");
+    write(1, prompt, len);
     read(0, treasure.userName, sizeof(treasure.userName));
     treasure.userName[strcspn(treasure.userName, "\n")] = '\0';
 
-    printf ("Enter the latitude: ");
-    fflush (stdout);
+    len = snprintf(prompt, sizeof(prompt), "Enter the latitude: ");
+    write(1, prompt, len);
     read(0, buffer, sizeof(buffer));
     treasure.latitude = atof(buffer);
 
-    printf ("Enter the longitude: ");
-    fflush (stdout);
+    len = snprintf(prompt, sizeof(prompt), "Enter the longitude: ");
+    write(1, prompt, len);
     read(0, buffer, sizeof(buffer));
     treasure.longitude = atof(buffer);
 
-    printf ("Enter the value: ");
-    fflush (stdout);
+    len = snprintf(prompt, sizeof(prompt), "Enter the value: ");
+    write(1, prompt, len);
     read(0, buffer, sizeof(buffer));
     treasure.value = atoi(buffer);
-    
-    
-    printf ("Enter the clue: ");
-    fflush (stdout);
+
+    len = snprintf(prompt, sizeof(prompt), "Enter the clue: ");
+    write(1, prompt, len);
     read (0, treasure.clue, sizeof (treasure.clue));
     treasure.clue[strcspn (treasure.clue, "\n")] = '\0';
 
@@ -138,13 +144,20 @@ void list (char* huntID)
     }
 
 
-    printf ("Hunt Name: %s\n", huntID);
-    printf ("File size: %ld bytes\n", st.st_size);
+    char output[512];
+    int len;
+
+    len = snprintf(output, sizeof(output), "Hunt Name: %s\n", huntID);
+    write(1, output, len);
+
+    len = snprintf(output, sizeof(output), "File size: %ld bytes\n", st.st_size);
+    write(1, output, len);
 
     char timeBuffer[100];
     struct tm* time = localtime (&st.st_mtime);
     strftime (timeBuffer, sizeof (timeBuffer), "%Y-%m-%d %H:%M:%S", time);
-    printf ("Last modified: %s\n", timeBuffer);
+    len = snprintf(output, sizeof(output), "Last modified: %s\n", timeBuffer);
+    write(1, output, len);
 
     int file;
     if ((file = open (treasureFile, O_RDONLY)) < 0)
@@ -161,7 +174,10 @@ void list (char* huntID)
     }
     while (size == sizeof (treasure_t))
     {
-        printf ("%d\n%s\n%.2f\n%.2f\n%s\n%d\n", treasure.ID, treasure.userName, treasure.latitude, treasure.longitude, treasure.clue, treasure.value);
+        len = snprintf(output, sizeof(output), "%d\n%s\n%.2f\n%.2f\n%s\n%d\n",
+                       treasure.ID, treasure.userName, treasure.latitude,
+                       treasure.longitude, treasure.clue, treasure.value);
+        write(1, output, len);
         size = read (file, &treasure, sizeof (treasure_t));
     }
     log_hunt (huntID, "Listed treasures");
@@ -200,7 +216,11 @@ void view (char* huntID, int ID)
     {
         if (treasure.ID == ID)
         {
-            printf ("%d\n%s\n%.2f\n%.2f\n%s\n%d\n", treasure.ID, treasure.userName, treasure.latitude, treasure.longitude, treasure.clue, treasure.value);
+            char buffer[512];
+            snprintf(buffer, sizeof(buffer), "%d\n%s\n%.2f\n%.2f\n%s\n%d\n", 
+                   treasure.ID, treasure.userName, treasure.latitude, 
+                   treasure.longitude, treasure.clue, treasure.value);
+            write(1, buffer, strlen (buffer));
             snprintf (message, sizeof (message), "Viewed treasure with ID: %d", treasure.ID);
             count++;
         }
@@ -317,16 +337,61 @@ void remove_hunt (char* huntID)
 }
 
 
+
+void list_hunts() 
+{
+    DIR *dir = opendir(".");
+    if (!dir) 
+    {
+        perror("Could not open current directory");
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) 
+    {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        struct stat st;
+        if (stat(entry->d_name, &st) == 0 && S_ISDIR(st.st_mode)) 
+        {
+            char treasureFile[512];
+            snprintf(treasureFile, sizeof(treasureFile), "%s/treasures.dat", entry->d_name);
+
+            if (access(treasureFile, F_OK) == 0) //F_OK is a flag for checking only the existence
+            {
+                list(entry->d_name);
+            }
+        }
+    }
+    closedir(dir);
+}
+
+
+
 int main (int argc, char** argv)
 {
-    if (argc < 3)
+    if (argc < 2)
     {
-        fprintf(stderr, "Usage:\n");
-        fprintf(stderr, "  %s --add <huntName>\n", argv[0]);
-        fprintf(stderr, "  %s --list <huntName>\n", argv[0]);
-        fprintf(stderr, "  %s --view <huntName> <ID>\n", argv[0]);
-        fprintf(stderr, "  %s --remove <huntName> <ID>\n", argv[0]);
-        fprintf(stderr, "  %s --delete <huntName>\n", argv[0]);
+        char buffer[128];
+        snprintf(buffer, sizeof(buffer), "Usage:\n");
+        write(2, buffer, strlen(buffer));   //2 is the file descriptor for stderr
+
+        snprintf(buffer, sizeof(buffer), "  %s --add <huntName>\n", argv[0]);
+        write(2, buffer, strlen(buffer));
+
+        snprintf(buffer, sizeof(buffer), "  %s --list <huntName>\n", argv[0]);
+        write(2, buffer, strlen(buffer));
+
+        snprintf(buffer, sizeof(buffer), "  %s --view <huntName> <ID>\n", argv[0]);
+        write(2, buffer, strlen(buffer));
+
+        snprintf(buffer, sizeof(buffer), "  %s --remove <huntName> <ID>\n", argv[0]);
+        write(2, buffer, strlen(buffer));
+
+        snprintf(buffer, sizeof(buffer), "  %s --delete <huntName>\n", argv[0]);
+        write(2, buffer, strlen(buffer));
         return 1;
     }
 
@@ -365,7 +430,12 @@ int main (int argc, char** argv)
     {
         remove_hunt (huntName);
     }
-    else{
+    else if (strcmp (option, "--list_hunts") == 0)
+    {
+        list_hunts();
+    }
+    else
+    {
         fprintf (stderr, "Invalid option\n");
         return 1;
     }
