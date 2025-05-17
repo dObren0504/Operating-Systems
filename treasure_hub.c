@@ -18,6 +18,7 @@ pid_t monitor_pid = -1;
 int monitor_running = 0;
 int monitor_shutting_down = 0;
 int shut_down_error_printed = 0;
+int mp[2];
 
 void handler_sigusr1(int sig)
 {
@@ -46,6 +47,11 @@ void handler_sigusr1(int sig)
             pid_t pid = fork();
             if (pid == 0) 
             {
+                close(mp[0]); 
+                dup2(mp[1], 1);
+                dup2(mp[1], 2);
+                close(mp[1]);
+
                 execvp(args[0], args);
                 perror("execvp failed");
                 exit(1);
@@ -60,6 +66,7 @@ void handler_sigusr1(int sig)
                     snprintf(message, sizeof(message), "Command exited with status %d\n", WEXITSTATUS(status));
                     write(1, message, strlen(message));
                 } 
+                close(mp[1]);
             } 
             else 
             {
@@ -116,6 +123,12 @@ void start_monitor ()
         write (1, "Monitor is already running\n", strlen ("Monitor is already running\n"));
         return;
     }
+
+    if (pipe(mp) < 0) {
+        perror("pipe failed");
+        return;
+    }
+
     pid_t pid = fork();
     if (pid < 0)
     {
@@ -123,6 +136,9 @@ void start_monitor ()
     }
     if (pid == 0)
     {
+
+        close(mp[0]); // Close read end in child
+    
         struct sigaction sa_term, sa_usr1;
         sa_usr1.sa_handler = handler_sigusr1;
         sigemptyset(&sa_usr1.sa_mask);  //initializes the signal mask to empty, meaning that no signals will be blocked during handler_sigusr1
@@ -145,6 +161,8 @@ void start_monitor ()
         char message [256];
         snprintf (message, sizeof (message), "Monitor started, PID: %d\n", pid);
         write (1, message, strlen(message));
+        close(mp[1]);
+        
         monitor_pid = pid;
         monitor_running = 1;
     }
@@ -173,6 +191,16 @@ void handle_shutdown_error() {   //Function for handling the error when giving a
     }
 }
 
+void read_from_monitor_pipe() {
+    char pipe_buffer[256];
+    ssize_t nbytes;
+
+    while ((nbytes = read(mp[0], pipe_buffer, sizeof(pipe_buffer) - 1)) > 0) {
+        pipe_buffer[nbytes] = '\0';
+        write(1, pipe_buffer, strlen(pipe_buffer));
+    }
+}
+
 int main (void)
 {
     char compile_cmd[] = "gcc -Wall -o treasure_manager treasure_manager.c";
@@ -184,6 +212,8 @@ int main (void)
     sigemptyset(&sa_chld.sa_mask);
     sa_chld.sa_flags = SA_RESTART | SA_NOCLDSTOP;  //restarts certain system calls (read or write) that are interrupted by this signal  and the sigchld won't be sent when the child is stopped
     sigaction(SIGCHLD, &sa_chld, NULL);
+
+    
 
     while (1)
     {
@@ -277,6 +307,7 @@ int main (void)
                     write(1, (strcmp(command, "list_treasures") == 0) ? "Listing treasures...\n" : "Viewing treasure...\n", 
                         (strcmp(command, "list_treasures") == 0) ? strlen("Listing treasures...\n") : strlen("Viewing treasure...\n"));
                     kill(monitor_pid, SIGUSR1);
+                    read_from_monitor_pipe();
                 }
                 else
                 {
@@ -312,6 +343,7 @@ int main (void)
                     
                     write(1, "Listing hunts...\n", strlen ("Listing hunts...\n"));
                     kill(monitor_pid, SIGUSR1);
+                    read_from_monitor_pipe();
                 }
                 else
                 {
