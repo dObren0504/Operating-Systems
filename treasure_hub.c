@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <dirent.h>
 
 
 #define COMMAND_FILE "/tmp/command.txt"  // I will write the command in this file, so i can manage the SIGUSR1 signal depending on the command
@@ -203,8 +204,12 @@ void read_from_monitor_pipe() {
 
 int main (void)
 {
-    char compile_cmd[] = "gcc -Wall -o treasure_manager treasure_manager.c";
+    char *compile_cmd = "gcc -Wall -o treasure_manager treasure_manager.c";
     system (compile_cmd);
+
+    char *compile_score = "gcc -Wall -o calculate_score calculate_score.c";
+    system (compile_score);
+
     char command[256];
 
     struct sigaction sa_chld;
@@ -339,11 +344,85 @@ int main (void)
                     {
                         perror("Failed to write to command file");
                     }
-
-                    
                     write(1, "Listing hunts...\n", strlen ("Listing hunts...\n"));
                     kill(monitor_pid, SIGUSR1);
                     read_from_monitor_pipe();
+                }
+                else
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                write(1, "Monitor is not running\n", strlen("Monitor is not running\n"));
+            }
+        }
+        else if (strcmp (command, "calculate_score") == 0)
+        {
+            if (monitor_running)
+            {
+                if (monitor_shutting_down == 0)
+                {
+                    DIR *dir = opendir(".");
+                    if (!dir) {
+                        perror("Failed to open current directory");
+                        continue;
+                    }
+
+                    struct dirent *entry;
+                    while ((entry = readdir(dir)) != NULL) {
+                        if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
+                            char huntID[256];
+                            snprintf(huntID, sizeof(huntID), "%s", entry->d_name);
+
+                            char treasurePath[512];
+                            snprintf(treasurePath, sizeof(treasurePath), "%s/treasures.dat", huntID);
+                              
+                            struct stat st;
+                            if (stat(treasurePath, &st) != 0 || !S_ISREG(st.st_mode)) 
+                            {
+                                continue;
+                            }
+
+
+                            int pipefd[2];
+                            if (pipe(pipefd) == -1) {
+                                perror("pipe failed");
+                                continue;
+                            }
+
+                            pid_t pid = fork();
+                            if (pid == 0) {
+                                close(pipefd[0]);
+                                dup2(pipefd[1], STDOUT_FILENO);
+                                close(pipefd[1]);
+
+                                execl("./calculate_score", "./calculate_score", huntID, NULL);
+                                perror("exec failed");
+                                exit(1);
+                            }
+                            else if (pid > 0) {
+                                close(pipefd[1]);
+                                char buffer[256];
+                                ssize_t bytes;
+                                write(1, "\n=======================\n", strlen("\n=======================\n"));
+                                dprintf(1, "Scores for hunt: %s\n", huntID);
+                                write(1, "-----------------------\n", strlen("-----------------------\n"));
+
+                                while ((bytes = read(pipefd[0], buffer, sizeof(buffer) - 1)) > 0) {
+                                    buffer[bytes] = '\0';
+                                    write(1, buffer, strlen(buffer));
+                                }
+                                close(pipefd[0]);
+                                wait(NULL);
+                            }
+                            else {
+                                perror("fork failed");
+                            }
+                        }
+                    }
+                    closedir(dir);
                 }
                 else
                 {
@@ -363,4 +442,3 @@ int main (void)
     }
     return 0;
 }
-
