@@ -222,7 +222,7 @@ int main (void)
 
     while (1)
     {
-        //write (1, ">>> ", strlen (">>> "));
+        
         int size = read (0, command, sizeof (command) - 1);
         command[size] = '\0';
         if (command[size - 1] == '\n')
@@ -234,7 +234,7 @@ int main (void)
         {
             handle_shutdown_error();
         }
-
+        
         
         if (strcmp (command, "start_monitor") == 0)
         {
@@ -371,8 +371,10 @@ int main (void)
                     }
 
                     struct dirent *entry;
-                    while ((entry = readdir(dir)) != NULL) {
-                        if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
+                    while ((entry = readdir(dir)) != NULL) 
+                    {
+                        if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) 
+                        {
                             char huntID[256];
                             snprintf(huntID, sizeof(huntID), "%s", entry->d_name);
 
@@ -380,7 +382,8 @@ int main (void)
                             snprintf(treasurePath, sizeof(treasurePath), "%s/treasures.dat", huntID);
 
                             struct stat st;
-                            if (stat(treasurePath, &st) != 0 || !S_ISREG(st.st_mode)) {
+                            if (stat(treasurePath, &st) != 0 || !S_ISREG(st.st_mode)) 
+                            {
                                 continue;
                             }
 
@@ -391,14 +394,16 @@ int main (void)
                             }
 
                             pid_t pid = fork();
-                            if (pid == -1) {
+                            if (pid < 0) 
+                            {
                                 perror("fork failed");
                                 close(pipefd[0]);
                                 close(pipefd[1]);
                                 continue;
                             }
 
-                            if (pid == 0) {
+                            if (pid == 0) 
+                            {
                                 
                                 close(pipefd[0]); 
                                 dup2(pipefd[1], STDOUT_FILENO);
@@ -407,7 +412,9 @@ int main (void)
                                 execl("./calculate_score", "./calculate_score", huntID, NULL);
                                 perror("exec failed");
                                 exit(EXIT_FAILURE);
-                            } else {
+                            } 
+                            else 
+                            {
                                 
                                 close(pipefd[1]); 
                                 char buffer[256];
@@ -416,12 +423,13 @@ int main (void)
                                 dprintf(1, "Scores for hunt: %s\n", huntID);
                                 write(1, "-----------------------\n", strlen("-----------------------\n"));
 
-                                while ((bytes = read(pipefd[0], buffer, sizeof(buffer) - 1)) > 0) {
+                                while ((bytes = read(pipefd[0], buffer, sizeof(buffer) - 1)) > 0) 
+                                {
                                     buffer[bytes] = '\0';
                                     write(1, buffer, strlen(buffer));
                                 }
                                 close(pipefd[0]);
-                                waitpid(pid, NULL, 0); // Wait for child to finish
+                                waitpid(pid, NULL, 0); 
                             }
                         }
                     }
