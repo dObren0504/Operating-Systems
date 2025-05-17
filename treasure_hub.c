@@ -358,7 +358,7 @@ int main (void)
                 write(1, "Monitor is not running\n", strlen("Monitor is not running\n"));
             }
         }
-        else if (strcmp (command, "calculate_score") == 0)
+        else if (strcmp(command, "calculate_score") == 0)
         {
             if (monitor_running)
             {
@@ -378,13 +378,11 @@ int main (void)
 
                             char treasurePath[512];
                             snprintf(treasurePath, sizeof(treasurePath), "%s/treasures.dat", huntID);
-                              
+
                             struct stat st;
-                            if (stat(treasurePath, &st) != 0 || !S_ISREG(st.st_mode)) 
-                            {
+                            if (stat(treasurePath, &st) != 0 || !S_ISREG(st.st_mode)) {
                                 continue;
                             }
-
 
                             int pipefd[2];
                             if (pipe(pipefd) == -1) {
@@ -393,17 +391,25 @@ int main (void)
                             }
 
                             pid_t pid = fork();
-                            if (pid == 0) {
+                            if (pid == -1) {
+                                perror("fork failed");
                                 close(pipefd[0]);
+                                close(pipefd[1]);
+                                continue;
+                            }
+
+                            if (pid == 0) {
+                                
+                                close(pipefd[0]); 
                                 dup2(pipefd[1], STDOUT_FILENO);
                                 close(pipefd[1]);
 
                                 execl("./calculate_score", "./calculate_score", huntID, NULL);
                                 perror("exec failed");
-                                exit(1);
-                            }
-                            else if (pid > 0) {
-                                close(pipefd[1]);
+                                exit(EXIT_FAILURE);
+                            } else {
+                                
+                                close(pipefd[1]); 
                                 char buffer[256];
                                 ssize_t bytes;
                                 write(1, "\n=======================\n", strlen("\n=======================\n"));
@@ -415,10 +421,7 @@ int main (void)
                                     write(1, buffer, strlen(buffer));
                                 }
                                 close(pipefd[0]);
-                                wait(NULL);
-                            }
-                            else {
-                                perror("fork failed");
+                                waitpid(pid, NULL, 0); // Wait for child to finish
                             }
                         }
                     }
@@ -434,6 +437,7 @@ int main (void)
                 write(1, "Monitor is not running\n", strlen("Monitor is not running\n"));
             }
         }
+
         else
         {
             write (1, "Invalid Command\n\nTry:\nstart_monitor\nlist_hunts\nlist_treasures\nview_treasure\nstop_monitor\nexit\n\n", strlen ("Invalid Command\n\nTry:\nstart_monitor\nlist_hunts\nlist_treasures\nview_treasure\nstop_monitor\nexit\n\n"));
