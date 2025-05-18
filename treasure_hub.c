@@ -387,8 +387,8 @@ int main (void)
                                 continue;
                             }
 
-                            int pipefd[2];
-                            if (pipe(pipefd) == -1) {
+                            int pipeScore[2];
+                            if (pipe(pipeScore) < 0) {
                                 perror("pipe failed");
                                 continue;
                             }
@@ -397,17 +397,16 @@ int main (void)
                             if (pid < 0) 
                             {
                                 perror("fork failed");
-                                close(pipefd[0]);
-                                close(pipefd[1]);
+                                close(pipeScore[0]);
+                                close(pipeScore[1]);
                                 continue;
                             }
-
                             if (pid == 0) 
                             {
                                 
-                                close(pipefd[0]); 
-                                dup2(pipefd[1], STDOUT_FILENO);
-                                close(pipefd[1]);
+                                close(pipeScore[0]); 
+                                dup2(pipeScore[1], 1);
+                                close(pipeScore[1]);
 
                                 execl("./calculate_score", "./calculate_score", huntID, NULL);
                                 perror("exec failed");
@@ -416,19 +415,19 @@ int main (void)
                             else 
                             {
                                 
-                                close(pipefd[1]); 
+                                close(pipeScore[1]); 
                                 char buffer[256];
                                 ssize_t bytes;
                                 write(1, "\n=======================\n", strlen("\n=======================\n"));
                                 dprintf(1, "Scores for hunt: %s\n", huntID);
                                 write(1, "-----------------------\n", strlen("-----------------------\n"));
 
-                                while ((bytes = read(pipefd[0], buffer, sizeof(buffer) - 1)) > 0) 
+                                while ((bytes = read(pipeScore[0], buffer, sizeof(buffer) - 1)) > 0) 
                                 {
                                     buffer[bytes] = '\0';
                                     write(1, buffer, strlen(buffer));
                                 }
-                                close(pipefd[0]);
+                                close(pipeScore[0]);
                                 waitpid(pid, NULL, 0); 
                             }
                         }
@@ -448,7 +447,7 @@ int main (void)
 
         else
         {
-            write (1, "Invalid Command\n\nTry:\nstart_monitor\nlist_hunts\nlist_treasures\nview_treasure\nstop_monitor\nexit\n\n", strlen ("Invalid Command\n\nTry:\nstart_monitor\nlist_hunts\nlist_treasures\nview_treasure\nstop_monitor\nexit\n\n"));
+            write (1, "Invalid Command\n\nTry:\nstart_monitor\nlist_hunts\nlist_treasures\nview_treasure\nstop_monitor\ncalculate_score\nexit\n\n", strlen ("Invalid Command\n\nTry:\nstart_monitor\nlist_hunts\nlist_treasures\nview_treasure\nstop_monitor\ncalculate_score\nexit\n\n"));
         }
         
     }

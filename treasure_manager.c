@@ -146,10 +146,10 @@ void list (char* huntID)
 
     char output[512];
     int len;
-
+    write (1, "===================\n", strlen ("===================\n"));
     len = snprintf(output, sizeof(output), "Hunt Name: %s\n", huntID);
     write(1, output, len);
-
+    write (1, "-------------------\n", strlen ("-------------------\n"));
     len = snprintf(output, sizeof(output), "File size: %ld bytes\n", st.st_size);
     write(1, output, len);
 
@@ -158,7 +158,7 @@ void list (char* huntID)
     strftime (timeBuffer, sizeof (timeBuffer), "%Y-%m-%d %H:%M:%S", time);
     len = snprintf(output, sizeof(output), "Last modified: %s\n", timeBuffer);
     write(1, output, len);
-
+    write (1, "-------------------\n", strlen ("-------------------\n"));
     int file;
     if ((file = open (treasureFile, O_RDONLY)) < 0)
     {

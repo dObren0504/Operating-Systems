@@ -76,12 +76,9 @@ int main(int argc, char *argv[])
             users[index].score += treasure.value;
         }
     }
-
     close(fd);
 
     char buffer[128];
-    snprintf(buffer, sizeof(buffer), "Scores for %s:\n", argv[1]);
-    write(1, buffer, strlen(buffer));
 
     for (int i = 0; i < user_count; i++) 
     {
